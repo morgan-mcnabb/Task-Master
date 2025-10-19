@@ -14,9 +14,7 @@ public interface ITaskMapper
     TaskDto ToTaskDto(TaskItem task);
     TagDto ToTagDto(Tag tag);
     PagedResponse<TaskDto> ToPagedResponse(PagedResult<TaskItem> page);
-
-    void ApplyUpdates(TaskItem task, UpdateTaskRequest request, DateTime utcNow);
-
+    
     string? ToETag(byte[]? rowVersion);
     byte[]? FromETag(string? etag);
 }

@@ -10,15 +10,15 @@ public sealed class TaskItem : IAuditableEntity
     public string Title { get; set; } = null!;
     public string? Description { get; set; }
 
-    public TaskStatus Status { get; private set; } = TaskStatus.Todo;
+    public TaskStatus Status { get; set; } = TaskStatus.Todo;
     public TaskPriority Priority { get; set; } = TaskPriority.Medium;
     public DateOnly? DueDate { get; set; }
 
-    public DateTime? CompletedAtUtc { get; private set; }
+    public DateTime? CompletedAtUtc { get; set; }
     public DateTime CreatedAtUtc { get; set; }
     public DateTime UpdatedAtUtc { get; set; }
 
-    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+    public byte[] RowVersion { get; set; } = [];
 
     public ICollection<TaskTag> TaskTags { get; set; } = new List<TaskTag>();
 

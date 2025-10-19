@@ -72,33 +72,6 @@ public sealed class TaskMapper : ITaskMapper
         return new PagedResponse<TaskDto>(taskDtos, page.TotalCount, page.PageNumber, page.PageSize);
     }
 
-    public void ApplyUpdates(TaskItem task, UpdateTaskRequest request, DateTime utcNow)
-    {
-        var updatedTitle = request.Title ?? task.Title;
-        var updatedDescription = request.Description ?? task.Description;
-        var updatedPriority = request.Priority ?? task.Priority;
-        var updatedDueDate = request.DueDate ?? task.DueDate;
-
-        task.UpdateCoreDetails(updatedTitle, updatedDescription, updatedPriority, updatedDueDate);
-
-        if (request.Status is null) return;
-        switch (request.Status.Value)
-        {
-            case TaskStatus.Todo:
-                task.MarkTodo();
-                break;
-            case TaskStatus.InProgress:
-                task.MarkInProgress();
-                break;
-            case TaskStatus.Done:
-                task.MarkDone(utcNow);
-                break;
-            case TaskStatus.Archived:
-                task.Archive();
-                break;
-        }
-    }
-
     public string? ToETag(byte[]? rowVersion)
         => rowVersion is null || rowVersion.Length == 0 ? null : Convert.ToBase64String(rowVersion);
 

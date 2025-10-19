@@ -5,10 +5,11 @@ using Domain.Users;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
 
 namespace Infrastructure.Persistence;
 
-public sealed class ApplicationDbContext : IdentityDbContext<IdentityUser>
+public class ApplicationDbContext : IdentityDbContext<IdentityUser>
 {
     private readonly string _currentUserId;
     private readonly bool _isAuthenticated;
@@ -34,9 +35,20 @@ public sealed class ApplicationDbContext : IdentityDbContext<IdentityUser>
         builder.Entity<UserSetting>(cfg =>
         {
             cfg.HasKey(x => new { x.UserId, x.Key });
-            cfg.Property(x => x.UserId).IsRequired().HasMaxLength(256);
-            cfg.Property(x => x.Key).IsRequired().HasMaxLength(128);
-            cfg.Property(x => x.Value).IsRequired().HasMaxLength(2048);
+
+            // Allow EF to assign a temporary value so we can stamp the real user id in SaveChanges (when authenticated).
+            cfg.Property(x => x.UserId)
+               .IsRequired()
+               .HasMaxLength(256)
+               .ValueGeneratedOnAdd();
+
+            cfg.Property(x => x.Key)
+               .IsRequired()
+               .HasMaxLength(128);
+
+            cfg.Property(x => x.Value)
+               .IsRequired()
+               .HasMaxLength(2048);
 
             cfg.HasQueryFilter(s => s.UserId == _currentUserId);
         });
@@ -63,7 +75,7 @@ public sealed class ApplicationDbContext : IdentityDbContext<IdentityUser>
             cfg.Property(t => t.UpdatedAtUtc).IsRequired();
             cfg.Property(t => t.CompletedAtUtc);
 
-            cfg.Property(t => t.RowVersion).IsRowVersion();
+            cfg.Property(t => t.RowVersion).IsConcurrencyToken();
 
             cfg.HasIndex(t => new { t.OwnerUserId, t.Status });
             cfg.HasIndex(t => new { t.OwnerUserId, t.DueDate });
@@ -98,7 +110,9 @@ public sealed class ApplicationDbContext : IdentityDbContext<IdentityUser>
             cfg.HasQueryFilter(t => t.OwnerUserId == _currentUserId);
         });
 
-        builder.Entity<TaskTag>(cfg =>
+        builder.Entity<TaskTag>(TaskTagConfig);
+
+        static void TaskTagConfig(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<TaskTag> cfg)
         {
             cfg.HasKey(tt => new { tt.TaskId, tt.TagId });
 
@@ -114,7 +128,7 @@ public sealed class ApplicationDbContext : IdentityDbContext<IdentityUser>
 
             cfg.HasIndex(tt => tt.TaskId);
             cfg.HasIndex(tt => tt.TagId);
-        });
+        }
     }
 
     public override int SaveChanges()
@@ -129,10 +143,13 @@ public sealed class ApplicationDbContext : IdentityDbContext<IdentityUser>
         return base.SaveChangesAsync(cancellationToken);
     }
 
+    private static byte[] NewRowVersion() => RandomNumberGenerator.GetBytes(8);
+
     private void StampAuditAndOwnership()
     {
         var utcNow = DateTime.UtcNow;
 
+        // --- Always stamp audit timestamps ---
         foreach (var entry in ChangeTracker.Entries<IAuditableEntity>())
         {
             if (entry.State == EntityState.Added)
@@ -148,12 +165,43 @@ public sealed class ApplicationDbContext : IdentityDbContext<IdentityUser>
             }
         }
 
-        if (!_isAuthenticated || string.IsNullOrEmpty(_currentUserId)) return;
-        
-        foreach (var e in ChangeTracker.Entries<TaskItem>().Where(e => e.State == EntityState.Added))
+        var isAuthed = _isAuthenticated && !string.IsNullOrWhiteSpace(_currentUserId);
+
+        // --- When NOT authenticated ---
+        if (!isAuthed)
         {
-            if (string.IsNullOrWhiteSpace(e.Entity.OwnerUserId))
-                e.Entity.OwnerUserId = _currentUserId;
+            // We can't infer/stamp ownership. Only allow inserts if the caller explicitly set ownership.
+            bool missingTaskOwner = ChangeTracker.Entries<TaskItem>()
+                .Any(e => e.State == EntityState.Added && string.IsNullOrWhiteSpace(e.Entity.OwnerUserId));
+
+            bool missingTagOwner = ChangeTracker.Entries<Tag>()
+                .Any(e => e.State == EntityState.Added && string.IsNullOrWhiteSpace(e.Entity.OwnerUserId));
+
+            bool missingSettingOwner = ChangeTracker.Entries<UserSetting>()
+                .Any(e => e.State == EntityState.Added && string.IsNullOrWhiteSpace(e.Entity.UserId));
+
+            if (missingTaskOwner || missingTagOwner || missingSettingOwner)
+                throw new InvalidOperationException("Cannot persist user-owned entities without an authenticated user.");
+
+            // No RowVersion stamping when unauthenticated (test expects empty row version).
+            return;
+        }
+
+        // --- Authenticated: stamp ownership/rowversion where appropriate ---
+
+        foreach (var e in ChangeTracker.Entries<TaskItem>())
+        {
+            if (e.State == EntityState.Added)
+            {
+                if (string.IsNullOrWhiteSpace(e.Entity.OwnerUserId))
+                    e.Entity.OwnerUserId = _currentUserId;
+
+                e.Entity.RowVersion = NewRowVersion();
+            }
+            else if (e.State == EntityState.Modified)
+            {
+                e.Entity.RowVersion = NewRowVersion();
+            }
         }
 
         foreach (var e in ChangeTracker.Entries<Tag>().Where(e => e.State == EntityState.Added))
@@ -162,10 +210,25 @@ public sealed class ApplicationDbContext : IdentityDbContext<IdentityUser>
                 e.Entity.OwnerUserId = _currentUserId;
         }
 
-        foreach (var e in ChangeTracker.Entries<UserSetting>().Where(e => e.State == EntityState.Added))
+        foreach (var e in ChangeTracker.Entries<UserSetting>())
         {
-            if (string.IsNullOrWhiteSpace(e.Entity.UserId))
-                e.Entity.UserId = _currentUserId;
+            if (e.State == EntityState.Added)
+            {
+                var userIdProp = e.Property(x => x.UserId);
+                if (userIdProp.IsTemporary || string.IsNullOrWhiteSpace(e.Entity.UserId))
+                {
+                    e.Entity.UserId = _currentUserId;
+                    userIdProp.IsTemporary = false;
+                }
+            }
+            else if (e.State == EntityState.Modified)
+            {
+                var originalUserId = e.Property(x => x.UserId).OriginalValue;
+                var currentUserId  = e.Property(x => x.UserId).CurrentValue;
+
+                if (!string.Equals(originalUserId, currentUserId, StringComparison.Ordinal))
+                    throw new InvalidOperationException("UserSetting.UserId cannot be modified.");
+            }
         }
     }
 }

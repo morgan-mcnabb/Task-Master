@@ -18,36 +18,59 @@ public sealed class EfTagRepository(ApplicationDbContext db) : ITagRepository
 
     public async Task<IReadOnlyList<Tag>> EnsureTagsExistAsync(IEnumerable<string> tagNames, CancellationToken ct)
     {
-        var normalized = tagNames
+        ArgumentNullException.ThrowIfNull(tagNames);
+
+        var normalizedPairs = tagNames
             .Where(n => !string.IsNullOrWhiteSpace(n))
-            .Select(n => n.Trim().ToUpperInvariant())
-            .Distinct(StringComparer.Ordinal)
+            .Select(n => n.Trim())
+            .Select(n => new { Original = n, Normalized = n.ToUpperInvariant() })
+            .GroupBy(x => x.Normalized, StringComparer.Ordinal)
+            .Select(g => g.First()) // choose a representative original
             .ToArray();
 
-        if (normalized.Length == 0) return Array.Empty<Tag>();
+        if (normalizedPairs.Length == 0)
+            return Array.Empty<Tag>();
+
+        var keys = normalizedPairs.Select(p => p.Normalized).ToArray();
 
         var existing = await db.Tags
-            .Where(t => normalized.Contains(t.NormalizedName))
+            .Where(t => keys.Contains(t.NormalizedName))
             .ToListAsync(ct);
 
-        var existingSet = existing.Select(t => t.NormalizedName).ToHashSet(StringComparer.Ordinal);
+        var existingSet = existing
+            .Select(t => t.NormalizedName)
+            .ToHashSet(StringComparer.Ordinal);
 
-        foreach (var n in normalized)
-        {
-            if (!existingSet.Contains(n))
+        var newTags = normalizedPairs
+            .Where(p => !existingSet.Contains(p.Normalized))
+            .Select(p => new Tag
             {
-                db.Tags.Add(new Tag
-                {
-                    Name = n,
-                    NormalizedName = n
-                });
-            }
+                Name = p.Original,
+                NormalizedName = p.Normalized 
+            })
+            .ToList();
+
+        if (newTags.Count > 0)
+            db.Tags.AddRange(newTags);
+
+        return existing.Concat(newTags).ToList();
+    }
+
+    public async Task<IReadOnlyList<Tag>> SearchAsync(string? search, int limit, CancellationToken ct)
+    {
+        var normalizedLimit = Math.Clamp(limit, 1, 50);
+
+        var query = db.Tags.AsNoTracking();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var needle = search.Trim().ToUpperInvariant();
+            query = query.Where(t => t.NormalizedName.Contains(needle));
         }
 
-        var final = await db.Tags
-            .Where(t => normalized.Contains(t.NormalizedName))
+        return await query
+            .OrderBy(t => t.Name)
+            .Take(normalizedLimit)
             .ToListAsync(ct);
-
-        return final;
     }
 }

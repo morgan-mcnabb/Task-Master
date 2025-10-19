@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>Task-Master</title>
+    <meta name="description" content="Task-Master SPA" />
+    <style>
+        :root { color-scheme: light dark; }
+        body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+        .shell { display: grid; place-items: center; min-height: 100dvh; padding: 2rem; }
+        .card { max-width: 720px; width: 100%; border-radius: 16px; padding: 24px; box-shadow: 0 6px 24px rgba(0,0,0,.12); }
+        .muted { opacity: .7; }
+        code { padding: .25rem .5rem; border-radius: .5rem; background: rgba(127,127,127,.15); }
+    </style>
+</head>
+<body>
+<div class="shell">
+    <div class="card">
+        <h1>Task-Master</h1>
+        <p class="muted">
+            Your SPA build should be placed in <code>TaskMasterApi/wwwroot</code>.
+            If you use Vite, run <code>vite build</code> and copy the <code>dist</code> output here
+            (ensure this <code>index.html</code> is replaced by your build).
+        </p>
+        <p class="muted">
+            API lives at the same origin (e.g., <code>/api/v1/tasks</code>), so your cookie session stays active.
+        </p>
+    </div>
+</div>
+</body>
+</html>

@@ -1,3 +1,4 @@
+using System.Globalization;
 using Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -55,14 +56,42 @@ public sealed class AuthController : ControllerBase
     [AllowAnonymous]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
-        var user = await _userManager.FindByNameAsync(request.UserName ?? string.Empty);
-        if (user is null) return Unauthorized();
+        if (string.IsNullOrWhiteSpace(request.UserName) || string.IsNullOrWhiteSpace(request.Password))
+            return BadRequest(new { error = "Username and password are required." });
 
-        var valid = await _userManager.CheckPasswordAsync(user, request.Password ?? string.Empty);
-        if (!valid) return Unauthorized();
+        var signInResult = await _signInManager.PasswordSignInAsync(
+            userName: request.UserName,
+            password: request.Password,
+            isPersistent: false,
+            lockoutOnFailure: true);
 
-        await _signInManager.SignInAsync(user, isPersistent: false);
-        return Ok(new { status = "ok" });
+        if (signInResult.Succeeded)
+        {
+            return Ok(new { status = "ok" });
+        }
+
+        if (signInResult.IsLockedOut)
+        {
+            // Provide Retry-After when we can infer remaining lockout time
+            var user = await _userManager.FindByNameAsync(request.UserName);
+            if (user is not null)
+            {
+                var lockoutEndUtc = await _userManager.GetLockoutEndDateAsync(user);
+                if (lockoutEndUtc.HasValue)
+                {
+                    var secondsRemaining = (int)Math.Max(
+                        Math.Ceiling((lockoutEndUtc.Value - DateTimeOffset.UtcNow).TotalSeconds),
+                        0);
+
+                    Response.Headers["Retry-After"] = secondsRemaining.ToString(CultureInfo.InvariantCulture);
+                }
+            }
+
+            return StatusCode(StatusCodes.Status423Locked, new { error = "Account is temporarily locked due to multiple failed attempts. Try again later." });
+        }
+
+        // Avoid account enumeration: do not disclose whether username or password was incorrect.
+        return Unauthorized();
     }
 
     [HttpPost("logout")]
@@ -108,13 +137,13 @@ public sealed class AuthController : ControllerBase
 
         if (request.Settings is not null)
         {
-            foreach (var kv in request.Settings)
+            foreach (var keyValuePair in request.Settings)
             {
                 _dbContext.UserSettings.Add(new Domain.Users.UserSetting
                 {
                     UserId = user.Id,
-                    Key = kv.Key,
-                    Value = kv.Value
+                    Key = keyValuePair.Key,
+                    Value = keyValuePair.Value
                 });
             }
         }
