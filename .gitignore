@@ -49,3 +49,10 @@ coverage/
 
 # Local keys / secrets (adjust if needed)
 **/dp-keys/
+
+# Node
+node_modules
+dist
+apps/ui/node_modules
+apps/ui/dist
+package-lock.json

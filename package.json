@@ -1,0 +1,5 @@
+{
+  "name": "task-master",
+  "private": true,
+  "workspaces": ["apps/*"]
+}

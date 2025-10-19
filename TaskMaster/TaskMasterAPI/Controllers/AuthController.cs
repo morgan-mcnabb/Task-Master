@@ -10,22 +10,12 @@ namespace TaskMasterApi.Controllers;
 
 [ApiController]
 [Route("auth")]
-public sealed class AuthController : ControllerBase
+public sealed class AuthController(
+    UserManager<IdentityUser> userManager,
+    SignInManager<IdentityUser> signInManager,
+    ApplicationDbContext dbContext)
+    : ControllerBase
 {
-    private readonly UserManager<IdentityUser> _userManager;
-    private readonly SignInManager<IdentityUser> _signInManager;
-    private readonly ApplicationDbContext _dbContext;
-
-    public AuthController(
-        UserManager<IdentityUser> userManager,
-        SignInManager<IdentityUser> signInManager,
-        ApplicationDbContext dbContext)
-    {
-        _userManager = userManager;
-        _signInManager = signInManager;
-        _dbContext = dbContext;
-    }
-
     [HttpPost("register")]
     [AllowAnonymous]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request)
@@ -33,12 +23,12 @@ public sealed class AuthController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.UserName) || string.IsNullOrWhiteSpace(request.Password))
             return BadRequest(new { error = "Username and password are required." });
 
-        var existing = await _userManager.FindByNameAsync(request.UserName);
+        var existing = await userManager.FindByNameAsync(request.UserName);
         if (existing is not null)
             return Conflict(new { error = "User already exists." });
 
         var user = new IdentityUser { UserName = request.UserName };
-        var result = await _userManager.CreateAsync(user, request.Password);
+        var result = await userManager.CreateAsync(user, request.Password);
         if (!result.Succeeded)
         {
             return BadRequest(new
@@ -48,7 +38,7 @@ public sealed class AuthController : ControllerBase
             });
         }
 
-        await _signInManager.SignInAsync(user, isPersistent: false);
+        await signInManager.SignInAsync(user, isPersistent: false);
         return Created("/auth/me", new { user = request.UserName });
     }
 
@@ -59,7 +49,7 @@ public sealed class AuthController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.UserName) || string.IsNullOrWhiteSpace(request.Password))
             return BadRequest(new { error = "Username and password are required." });
 
-        var signInResult = await _signInManager.PasswordSignInAsync(
+        var signInResult = await signInManager.PasswordSignInAsync(
             userName: request.UserName,
             password: request.Password,
             isPersistent: false,
@@ -73,10 +63,10 @@ public sealed class AuthController : ControllerBase
         if (signInResult.IsLockedOut)
         {
             // Provide Retry-After when we can infer remaining lockout time
-            var user = await _userManager.FindByNameAsync(request.UserName);
+            var user = await userManager.FindByNameAsync(request.UserName);
             if (user is not null)
             {
-                var lockoutEndUtc = await _userManager.GetLockoutEndDateAsync(user);
+                var lockoutEndUtc = await userManager.GetLockoutEndDateAsync(user);
                 if (lockoutEndUtc.HasValue)
                 {
                     var secondsRemaining = (int)Math.Max(
@@ -98,7 +88,7 @@ public sealed class AuthController : ControllerBase
     [Authorize]
     public async Task<IActionResult> Logout()
     {
-        await _signInManager.SignOutAsync();
+        await signInManager.SignOutAsync();
         return NoContent();
     }
 
@@ -109,10 +99,10 @@ public sealed class AuthController : ControllerBase
         var userName = User.Identity?.Name;
         if (string.IsNullOrEmpty(userName)) return NotFound();
 
-        var user = await _userManager.FindByNameAsync(userName);
+        var user = await userManager.FindByNameAsync(userName);
         if (user is null) return NotFound();
 
-        var settings = await _dbContext.UserSettings
+        var settings = await dbContext.UserSettings
             .Where(s => s.UserId == user.Id)
             .ToDictionaryAsync(s => s.Key, s => s.Value);
 
@@ -126,20 +116,20 @@ public sealed class AuthController : ControllerBase
         var userName = User.Identity?.Name;
         if (string.IsNullOrEmpty(userName)) return Unauthorized();
 
-        var user = await _userManager.FindByNameAsync(userName);
+        var user = await userManager.FindByNameAsync(userName);
         if (user is null) return NotFound();
 
-        var existing = await _dbContext.UserSettings
+        var existing = await dbContext.UserSettings
             .Where(s => s.UserId == user.Id)
             .ToListAsync();
 
-        _dbContext.UserSettings.RemoveRange(existing);
+        dbContext.UserSettings.RemoveRange(existing);
 
         if (request.Settings is not null)
         {
             foreach (var keyValuePair in request.Settings)
             {
-                _dbContext.UserSettings.Add(new Domain.Users.UserSetting
+                dbContext.UserSettings.Add(new Domain.Users.UserSetting
                 {
                     UserId = user.Id,
                     Key = keyValuePair.Key,
@@ -148,7 +138,7 @@ public sealed class AuthController : ControllerBase
             }
         }
 
-        await _dbContext.SaveChangesAsync();
+        await dbContext.SaveChangesAsync();
         return NoContent();
     }
 }
