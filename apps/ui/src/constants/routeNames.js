@@ -1,6 +1,4 @@
 export const ROUTE_NAMES = Object.freeze({
-  HOME: 'home',
-
   // Auth (public)
   LOGIN: 'login',
   REGISTER: 'register',

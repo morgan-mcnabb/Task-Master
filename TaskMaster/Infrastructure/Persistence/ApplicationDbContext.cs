@@ -68,8 +68,16 @@ public class ApplicationDbContext : IdentityDbContext<IdentityUser>
             cfg.Property(t => t.Description)
                 .HasMaxLength(Validation.Task.DescriptionMaxLength);
 
-            cfg.Property(t => t.Priority).IsRequired();
-            cfg.Property(t => t.Status).IsRequired();
+            // Explicitly persist enums as INTEGER so ordering is numeric, not lexicographic.
+            cfg.Property(t => t.Priority)
+               .IsRequired()
+               .HasConversion<int>()
+               .HasColumnType("INTEGER");
+
+            cfg.Property(t => t.Status)
+               .IsRequired()
+               .HasConversion<int>()
+               .HasColumnType("INTEGER");
 
             cfg.Property(t => t.CreatedAtUtc).IsRequired();
             cfg.Property(t => t.UpdatedAtUtc).IsRequired();

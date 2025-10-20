@@ -10,6 +10,11 @@ const router = useRouter();
 const isAuthenticated = computed(() => authStore.isAuthenticated);
 const userName = computed(() => authStore.userName);
 
+// Brand link target: Tasks if signed in, otherwise Login
+const brandTarget = computed(() =>
+  isAuthenticated.value ? { name: ROUTE_NAMES.TASKS } : { name: ROUTE_NAMES.LOGIN }
+);
+
 async function handleLogout() {
   await authStore.logout();
   await router.replace({ name: ROUTE_NAMES.LOGIN });
@@ -20,27 +25,11 @@ async function handleLogout() {
   <div class="min-h-screen bg-gray-50 text-gray-900">
     <nav class="border-b border-gray-200 bg-white">
       <div class="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-        <router-link :to="{ name: ROUTE_NAMES.HOME }" class="text-lg font-semibold tracking-tight">
+        <router-link :to="brandTarget" class="text-lg font-semibold tracking-tight">
           Task&nbsp;Master
         </router-link>
 
-        <div class="flex items-center gap-6">
-          <router-link
-            :to="{ name: ROUTE_NAMES.HOME }"
-            class="text-gray-700 hover:text-indigo-600"
-          >
-            Home
-          </router-link>
-
-          <router-link
-            :to="{ name: ROUTE_NAMES.TASKS }"
-            class="text-gray-700 hover:text-indigo-600"
-          >
-            Tasks
-          </router-link>
-
-          <div class="h-6 w-px bg-gray-200" />
-
+        <div class="flex items-center gap-3 sm:gap-6">
           <template v-if="isAuthenticated">
             <span class="text-sm text-gray-600">Signed in as <strong>{{ userName }}</strong></span>
             <button

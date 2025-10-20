@@ -34,12 +34,9 @@ function getOrCreateCorrelationId() {
 }
 
 function generateUuidV4Fallback() {
-  // RFC4122-ish fallback; fine for correlation, not for cryptographic use.
-  // eslint-disable-next-line no-bitwise
+  // RFC4122-ish fallback
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-    // eslint-disable-next-line no-bitwise
     const r = (Math.random() * 16) | 0;
-    // eslint-disable-next-line no-bitwise
     const v = c === 'x' ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
@@ -47,7 +44,6 @@ function generateUuidV4Fallback() {
 
 export function resolveApiBaseUrl() {
   const raw = (import.meta.env.VITE_API_BASE_URL ?? '').trim();
-  // Empty string means same-origin
   return raw.replace(/\/$/, '');
 }
 
@@ -61,10 +57,7 @@ function joinUrl(baseUrl, path) {
   return `${normalizedBase}${normalizedPath}`;
 }
 
-/**
- * ProblemDetails structure:
- * https://datatracker.ietf.org/doc/html/rfc7807
- */
+/** RFC7807 helper */
 function parseProblemDetails(maybeJson, status) {
   const title = maybeJson?.title || 'Request failed';
   const errors = maybeJson?.errors || null;
@@ -87,31 +80,21 @@ export class ApiError extends Error {
 export function readETag(response) {
   return response.headers.get('ETag') || response.headers.get('etag') || null;
 }
-
 export function withIfMatch(headers = {}, etag) {
   if (!etag) return headers;
   return { ...headers, 'If-Match': etag };
 }
 
-/** Notifier (DI-friendly, minimal default) */
+/** Notifier (DI-friendly) */
 function createDefaultNotifier() {
   return {
-    toast(message) {
-      try { console.warn('[toast]', message); } catch {}
-    },
-    lockoutStart(totalSeconds) {
-      try { console.warn(`[lockout] You can retry in ${totalSeconds}s`); } catch {}
-    },
-    lockoutTick(secondsRemaining) {
-      try { console.warn(`[lockout] ${secondsRemaining}s remaining`); } catch {}
-    },
-    lockoutEnd() {
-      try { console.warn('[lockout] ended'); } catch {}
-    },
+    toast(message) { try { console.warn('[toast]', message); } catch {} },
+    lockoutStart(total) { try { console.warn(`[lockout] retry in ${total}s`); } catch {} },
+    lockoutTick(remaining) { try { console.warn(`[lockout] ${remaining}s`); } catch {} },
+    lockoutEnd() { try { console.warn('[lockout] ended'); } catch {} },
   };
 }
 
-/** Parse Retry-After header (seconds or HTTP-date). */
 function parseRetryAfter(headerValue) {
   if (!headerValue) return null;
   const asInt = Number.parseInt(headerValue, 10);
@@ -121,56 +104,34 @@ function parseRetryAfter(headerValue) {
   const diffMs = retryDate.getTime() - Date.now();
   return Math.max(0, Math.ceil(diffMs / 1000));
 }
-
-/** Simple countdown; returns cancel function. */
 function startCountdown(seconds, notifier) {
   if (!(seconds > 0)) return () => {};
   let remaining = seconds;
   notifier.lockoutStart(remaining);
-  const timerId = setInterval(() => {
+  const id = setInterval(() => {
     remaining -= 1;
-    if (remaining > 0) {
-      notifier.lockoutTick(remaining);
-    } else {
-      clearInterval(timerId);
-      notifier.lockoutEnd();
-    }
+    if (remaining > 0) notifier.lockoutTick(remaining);
+    else { clearInterval(id); notifier.lockoutEnd(); }
   }, 1000);
-  return () => clearInterval(timerId);
+  return () => clearInterval(id);
 }
 
-/**
- * Handle non-2xx side effects WITHOUT navigation.
- * 423 and 429 get user feedback; 401/403 are intentionally NO-OP here.
- */
+/** Non-2xx side effects (no navigation) */
 function handleResponseSideEffects(response, notifier) {
   const status = response.status;
-
   if (status === 423) {
     const retryHeader = response.headers.get('Retry-After');
     const seconds = parseRetryAfter(retryHeader);
-    if (typeof seconds === 'number' && seconds > 0) {
-      startCountdown(seconds, notifier);
-    } else {
-      notifier.toast('Your account is temporarily locked. Please try again later.');
-    }
+    if (typeof seconds === 'number' && seconds > 0) startCountdown(seconds, notifier);
+    else notifier.toast('Your account is temporarily locked. Please try again later.');
     return;
   }
-
   if (status === 429) {
     notifier.toast('Too many requests; try again shortly');
   }
 }
 
-/**
- * createApiClient
- *
- * Options:
- *  - baseUrl?: string
- *  - fetchImpl?: typeof fetch
- *  - notifier?: { toast(msg), lockoutStart(n), lockoutTick(n), lockoutEnd() }
- *  - defaultHeaders?: Record<string,string>
- */
+/** Factory */
 export function createApiClient({
   baseUrl = resolveApiBaseUrl(),
   fetchImpl = fetch,
@@ -186,15 +147,12 @@ export function createApiClient({
     signal,
   } = {}) {
     const url = joinUrl(baseUrl, path);
-
     const mergedHeaders = {
       Accept: 'application/json',
       'X-Correlation-Id': correlationId,
       ...defaultHeaders,
       ...headers,
     };
-
-    // Only set content-type when sending a non-FormData/Blob body
     const hasJsonBody = body != null && !(body instanceof FormData) && !(body instanceof Blob);
     const finalHeaders = hasJsonBody
       ? { 'Content-Type': 'application/json', ...mergedHeaders }
@@ -208,17 +166,15 @@ export function createApiClient({
       credentials: 'include',
     });
 
-    // 204: no content, still "ok"
     if (response.status === 204) {
       return { ok: true, data: null, response };
     }
 
-    // Parse response body (tolerate empty)
     const contentType = response.headers.get('content-type') || '';
-    const isJsonResponse =
+    const isJson =
       contentType.includes('application/json') ||
       contentType.includes('application/problem+json');
-    const parsed = isJsonResponse
+    const parsed = isJson
       ? await response.json().catch(() => null)
       : await response.text().catch(() => null);
 
@@ -226,8 +182,7 @@ export function createApiClient({
       return { ok: true, data: parsed, response };
     }
 
-    // Build an ApiError with ProblemDetails if present
-    const problem = isJsonResponse ? parseProblemDetails(parsed, response.status) : null;
+    const problem = isJson ? parseProblemDetails(parsed, response.status) : null;
     const error = new ApiError({
       message: problem?.title || (parsed && parsed.message) || `Request failed with status ${response.status}`,
       status: response.status,
@@ -237,13 +192,13 @@ export function createApiClient({
       problem,
     });
 
-    // Non-navigational side effects (toasts/lockout), no redirects here
     handleResponseSideEffects(response, notifier);
-
     throw error;
   }
 
   return {
+    correlationId, // ← expose for error toasts
+
     request: requestJson,
     get: (path, options = {}) => requestJson(path, { ...options, method: 'GET' }),
     post: (path, body, options = {}) => requestJson(path, { ...options, method: 'POST', body }),
@@ -251,7 +206,6 @@ export function createApiClient({
     patch: (path, body, options = {}) => requestJson(path, { ...options, method: 'PATCH', body }),
     delete: (path, options = {}) => requestJson(path, { ...options, method: 'DELETE' }),
 
-    // Utilities surfaced for consumers:
     readETag,
     withIfMatch,
   };

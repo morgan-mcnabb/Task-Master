@@ -1,1 +1,0 @@
-import{c as t,a as e,o}from"./index-Ct3dq3h5.js";const a={class:"mx-auto max-w-3xl p-6"},l={__name:"TaskNew",setup(n){return(c,s)=>(o(),t("section",a,[...s[0]||(s[0]=[e("h1",{class:"text-2xl font-semibold"},"New Task",-1),e("p",{class:"mt-2 text-gray-600"},"Coming soon.",-1)])]))}};export{l as default};

@@ -8,10 +8,9 @@ import LoadingSpinner from './components/ui/LoadingSpinner.vue'
     <RouterView v-slot="{ Component, route }">
       <!-- Only render when the router has a component -->
       <template v-if="Component">
-        <!-- You can keep Suspense if you like, but it's optional.
-             Lazy route components won't use it anyway. -->
+        <!-- Avoid remounting on querystring changes so inputs keep focus -->
         <!-- <Suspense> -->
-          <component :is="Component" :key="route.fullPath" />
+          <component :is="Component" />
           <!--
           <template #fallback>
             <div class="p-8">

@@ -1,9 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { ROUTE_NAMES } from '../constants/routeNames';
 
-// Lazy-loaded views
-const HomeView = () => import('../views/Home.vue');
-
 // Auth (public)
 const LoginView = () => import('../views/auth/Login.vue');
 const RegisterView = () => import('../views/auth/Register.vue');
@@ -16,8 +13,7 @@ const TaskDetailsView = () => import('../views/tasks/TaskDetails.vue');
 const NotFoundView = () => import('../views/NotFound.vue');
 
 const routes = [
-  { path: '/', redirect: { name: ROUTE_NAMES.LOGIN }},
-  { path: '/home', name: ROUTE_NAMES.HOME, component: HomeView },
+  { path: '/', redirect: { name: ROUTE_NAMES.LOGIN } },
 
   // Public
   { path: '/login', name: ROUTE_NAMES.LOGIN, component: LoginView, meta: { public: true } },
