@@ -53,6 +53,12 @@ You can also build the container with the provided `Dockerfile`. I ran the conta
   - Tasks should be editable after being created
 - **Search/filter**: a simple substring search on title and then some server-side filtering by status/priority/tag/due date with some very basic pagination + sorting.
 
+## Trade-offs
+- **SQLite**: SQLite let me ship a DB with migrations without running a server. This is great for small scale applications and getting an MVP out the door. However, there is limited concurrency and tooling for SQLite when compared to PostgreSQL or SQL Server. I'd switch the database the moment the application needed autoscaling or indexing.
+- **Cookie-based auth vs JWT/OIDC**: Cookie-based auth was simpler end-to-end, the SPA and the API share an origin so these cookies just work without CORS. This also let me keep the authentication logic small for an MVP. However, with JWT/OIDC I would get statelessness and better federation, plus some extra tooling and niceties out of the box. This would be one of the first things I'd work on to improve the application.
+- **Serving the SPA from the API**: I did this because it turned it into one process and one deploy. It lets the application avoid CORS as well, which can be a headache. This causes me to give up CDN edge caching and an independent deploy cadence for the UI vs the API. I'd immediately make this an S3+Cloudfront for the assets to take advantage of CDN edge caching.
+- **Project Layering**: I split up this small todo app into 4 projects: Domain, Application, Infrastructure, and API. This is definitely over-engineering and a lot of overhead for a weekend project, meaning I likely spent more time on the architecture than I should have. However, if this codebase continued to grow then this project structure will pay off quickly. I tried to keep it light to stay productive and quick, but still it added a lot of time overhead than if I just had a single large project.
+
 ## Scalabilty
 ### What already scales
 - **API Instances**: The API is containerized and we don'e keep per-user state in memory as authentication uses an encrypted cookie. The data-protection key right is persisted so any instance can validate cookies. That means that we can run multiples API replicas behind a load balancer without sticky sessions.
