@@ -1,10 +1,6 @@
-/* Tailwind v4 entrypoint */
 @import "tailwindcss";
 
-/* Plugins (v4-style) */
 @plugin "@tailwindcss/forms";
 
-/* Tell Tailwind where to scan for class names (v4-style).
-   These two lines remove any ambiguity and prevent the “no CSS” effect. */
 @source "../index.html";
 @source "./**/*.{vue,js,ts,jsx,tsx}";

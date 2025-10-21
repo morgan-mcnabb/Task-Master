@@ -1,9 +1,3 @@
-/**
- * Minimal, testable HTTP client with dependency injection.
- * - Uses fetch by default; pass a mock for tests.
- * - JSON by default; throws ApiError on non-2xx responses.
- */
-
 export class ApiError extends Error {
   constructor({ message, status, url, method, data }) {
     super(message ?? 'API Error');
@@ -15,18 +9,12 @@ export class ApiError extends Error {
   }
 }
 
-/**
- * Resolves base URL from env. Empty string ⇒ same-origin.
- */
 export function resolveApiBaseUrl() {
   // Ensure no trailing slash; empty string is valid (same-origin).
   const raw = (import.meta.env.VITE_API_BASE_URL ?? '').trim();
   return raw.replace(/\/$/, '');
 }
 
-/**
- * Safe path join that respects absolute URLs.
- */
 function buildUrl(baseUrl, path) {
   if (!path) return baseUrl;
   const isAbsolute = /^https?:\/\//i.test(path);
@@ -37,9 +25,6 @@ function buildUrl(baseUrl, path) {
   return `${normalizedBase}${normalizedPath}`;
 }
 
-/**
- * Creates an API client. Pass `fetchImpl` for tests.
- */
 export function createApiClient({
   baseUrl = resolveApiBaseUrl(),
   defaultHeaders = {},
@@ -59,7 +44,7 @@ export function createApiClient({
       headers: mergedHeaders,
       body: body != null && !(body instanceof FormData) ? JSON.stringify(body) : body,
       signal,
-      credentials: 'include', // tweak if you do not want cookies / auth flows
+      credentials: 'include',
     });
 
     const contentType = response.headers.get('content-type') || '';
@@ -86,9 +71,6 @@ export function createApiClient({
     patch: (path, body, options = {}) => request(path, { ...options, method: 'PATCH', body }),
     delete: (path, options = {}) => request(path, { ...options, method: 'DELETE' }),
 
-    /**
-     * Returns a new client with Authorization header set.
-     */
     withAuth(token) {
       return createApiClient({
         baseUrl,

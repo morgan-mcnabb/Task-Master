@@ -26,17 +26,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
-  /**
-   * Optional fetcher for tests/DI.
-   * Signature: async (query: string, limit: number, signal?: AbortSignal) => Promise<string[]>
-   */
   fetcher: {
     type: Function,
     default: null,
   },
-  /**
-   * Inline clear button UX (kept on by default).
-   */
   showClearButton: {
     type: Boolean,
     default: true,
@@ -60,7 +53,6 @@ const isOpen = ref(false);
 const highlightedIndex = ref(-1);
 const errorMessage = ref('');
 
-// Keep a deduped, normalized copy for internal comparisons
 const selectedTags = computed(() => dedupeCaseInsensitive(props.modelValue));
 
 function setModelValue(nextValues) {
@@ -115,9 +107,7 @@ function onInputKeydown(event) {
 
   const key = event.key;
 
-  // Accept free-text on Enter / Tab / comma
   if (key === 'Enter' || key === 'Tab' || key === ',') {
-    // If a suggestion is highlighted, choose it
     if (highlightedIndex.value >= 0 && highlightedIndex.value < suggestionItems.value.length) {
       event.preventDefault();
       addTag(suggestionItems.value[highlightedIndex.value]);
@@ -168,9 +158,6 @@ function onInputFocus() {
   }
 }
 
-/**
- * Suggestions fetching with DI-friendly fetcher, debounced and abortable.
- */
 async function defaultFetchSuggestions(query, limit, signal) {
   const searchParam = encodeURIComponent(query);
   const limitParam = encodeURIComponent(String(limit));
@@ -186,7 +173,6 @@ const runFetchAbortable = makeAbortable(async ({ signal }, query) => {
   try {
     const fetchFn = typeof props.fetcher === 'function' ? props.fetcher : defaultFetchSuggestions;
     const fetched = await fetchFn(query, props.limit, signal);
-    // Exclude already selected tags case-insensitively
     const filtered = fetched.filter(name => !alreadySelected(name));
     suggestionItems.value = filtered.slice(0, props.limit);
     if (inputValue.value.trim().length > 0 && suggestionItems.value.length > 0) {
@@ -213,13 +199,11 @@ const debouncedFetch = debounce((query) => {
   runFetchAbortable.run(query.trim());
 }, props.debounceMs);
 
-// React to input changes
 watch(inputValue, (current) => {
   highlightedIndex.value = -1;
   debouncedFetch(current);
 });
 
-// Close the popover when selection changes externally
 watch(() => props.modelValue, () => {
   suggestionItems.value = suggestionItems.value.filter(s => !alreadySelected(s));
   if (suggestionItems.value.length === 0) {
@@ -227,7 +211,6 @@ watch(() => props.modelValue, () => {
   }
 });
 
-// Click-outside using a component-scoped root (avoid duplicate ids)
 function handleGlobalClick(event) {
   const rootEl = rootRef.value;
   if (!rootEl) return;
@@ -246,14 +229,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div ref="rootRef" class="w-full">
-    <!--
-      Layout change:
-      - Input is rendered FIRST and kept at a fixed width so it stays put.
-      - Selected tags render to the RIGHT of the input.
-      - This prevents the input from shifting position when tags are added.
-    -->
     <div class="flex flex-wrap items-start gap-2">
-      <!-- Input + suggestions (anchored) -->
       <div class="relative w-56 flex-shrink-0">
         <input
           ref="inputRef"
@@ -289,7 +265,6 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <!-- Selected tags + inline clear -->
       <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
         <button
           v-if="showClearButton && selectedTags.length > 0"

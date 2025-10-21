@@ -1,9 +1,3 @@
-/**
- * DateOnly helpers (local time)
- * - formatDateOnly(Date) => 'yyyy-MM-dd'
- * - parseDateOnly('yyyy-MM-dd') => Date at local midnight
- */
-
 function pad2(n) {
   return String(n).padStart(2, '0');
 }
@@ -27,7 +21,6 @@ export function parseDateOnly(yyyyMmDd) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-/** Drop time component (local) */
 export function toDateOnly(date) {
   const parsed = date instanceof Date ? date : new Date(date);
   if (Number.isNaN(parsed.getTime())) return null;

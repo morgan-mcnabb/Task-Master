@@ -1,7 +1,4 @@
-/**
- * Simple debounce with leading/trailing options.
- * Default: trailing=true, leading=false
- */
+
 export function debounce(fn, wait = 300, options = {}) {
   const { leading = false, trailing = true } = options;
   let timerId = null;

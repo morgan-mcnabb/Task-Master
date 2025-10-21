@@ -1,9 +1,5 @@
 import { defineStore } from 'pinia';
 
-/**
- * Keeps per-task ETags for conditional updates (If-Match).
- * Uses Map for O(1) lookups; acceptable for client-side state.
- */
 export const useTaskCacheStore = defineStore('taskCache', {
   state: () => ({
     etagById: /** @type {Map<string, string>} */ (new Map()),

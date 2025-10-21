@@ -1,14 +1,3 @@
-/**
- * Tag normalization helpers
- * - normalizeTagsToStrings: convert arrays of strings or objects to a unique, trimmed string array
- *   Supported object shapes: { name }, { label }, { value }, or any object with at least one string value
- *   Duplicates are removed case-insensitively.
- */
-
-/**
- * @param {unknown} input
- * @returns {string[]}
- */
 export function normalizeTagsToStrings(input) {
   if (!Array.isArray(input)) return [];
 
@@ -21,11 +10,10 @@ export function normalizeTagsToStrings(input) {
     if (typeof rawItem === 'string') {
       candidate = rawItem;
     } else if (rawItem && typeof rawItem === 'object') {
-      // Prefer common keys, then fallback to the first string value we can find.
       const possibleValues = [
-        /** @type {any} */(rawItem).name,
-        /** @type {any} */(rawItem).label,
-        /** @type {any} */(rawItem).value,
+        (rawItem).name,
+        (rawItem).label,
+        (rawItem).value,
       ];
 
       let chosen = possibleValues.find(v => typeof v === 'string' && v.trim().length > 0);
@@ -53,11 +41,6 @@ export function normalizeTagsToStrings(input) {
   return normalized;
 }
 
-/**
- * Dedupe a string array case-insensitively, preserving the first occurrence's casing.
- * @param {string[]} items
- * @returns {string[]}
- */
 export function dedupeCaseInsensitive(items) {
   if (!Array.isArray(items)) return [];
   const seen = new Set();

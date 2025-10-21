@@ -11,12 +11,6 @@ export const TASK_PRIORITIES = Object.freeze([
   'High'
 ]);
 
-/**
- * Sort options for the Tasks list:
- * - Keep values aligned with backend field names.
- * - Labels are normalized for UI.
- * - We intentionally exclude "createdUtc/createdAt" because the column is not shown.
- */
 export const TASK_SORT_OPTIONS = Object.freeze([
   { value: 'dueDate', label: 'Due date' },
   { value: 'priority', label: 'Priority' },
@@ -24,7 +18,6 @@ export const TASK_SORT_OPTIONS = Object.freeze([
   { value: 'title', label: 'Title' },
 ]);
 
-// Allowed values for parsing/validation (used by taskQuery)
 export const TASK_SORT_FIELDS = Object.freeze(TASK_SORT_OPTIONS.map(option => option.value));
 
 export const SORT_DIRECTIONS = Object.freeze(['asc', 'desc']);

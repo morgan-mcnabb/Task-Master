@@ -12,7 +12,6 @@ function mapDtoToUi(dto) {
     status: dto.status,
     priority: dto.priority,
     dueDate: dto.dueDate || null,
-    // Normalize to string[] regardless of backend shape (strings or { id, name } objects).
     tags: normalizeTagsToStrings(dto.tags),
     isCompleted: String(dto.status).toLowerCase() === 'done',
     _raw: dto,
@@ -27,7 +26,6 @@ export const useTasksStore = defineStore('tasks', {
   state: () => ({
     tasks: /** @type {Array<{id:string,title:string,status:string,priority:string,dueDate:string|null,tags:string[],isCompleted:boolean,_raw?:any}>} */ ([]),
     isLoading: false,
-    /** Used to avoid UI stutter: keep content and show a light refresher after first load */
     hasLoadedOnce: false,
     errorMessage: '',
     errorCorrelationId: '',
@@ -94,9 +92,6 @@ export const useTasksStore = defineStore('tasks', {
       }
     },
 
-    /**
-     * Simple quick-create retained for potential inline-add UIs.
-     */
     async createTask(title) {
       const api = resolveApiFromStore(this);
       const cache = useTaskCacheStore();
@@ -129,10 +124,6 @@ export const useTasksStore = defineStore('tasks', {
       }
     },
 
-    /**
-     * Full create for the TaskNew view.
-     * payload shape: { title, description?, priority, dueDate?, tags?[] }
-     */
     async createTaskFull(payload) {
       const api = resolveApiFromStore(this);
       const cache = useTaskCacheStore();
@@ -149,8 +140,7 @@ export const useTasksStore = defineStore('tasks', {
         title: trimmedTitle,
         description: payload?.description ? String(payload.description).trim() : undefined,
         priority: payload?.priority || 'Medium',
-        dueDate: payload?.dueDate || null, // yyyy-MM-dd or null
-        // selectedTags in the form already guarantees strings; keep it explicit for clarity.
+        dueDate: payload?.dueDate || null,
         tags: Array.isArray(payload?.tags) ? payload.tags : [],
       };
 
@@ -213,12 +203,6 @@ export const useTasksStore = defineStore('tasks', {
       }
     },
 
-    /**
-     * Update the status of a task (inline control, all states).
-     * - Optimistic UI
-     * - Uses If-Match with cached ETag
-     * - On 412, revert and refresh current page to resolve conflicts
-     */
     async updateTaskStatus(taskId, nextStatus) {
       const api = resolveApiFromStore(this);
       const cache = useTaskCacheStore();
@@ -236,7 +220,6 @@ export const useTasksStore = defineStore('tasks', {
       const previousStatus = previousTask.status;
       const previousIsCompleted = previousTask.isCompleted;
 
-      // Optimistic update
       const optimisticIsCompleted = normalizedStatus.toLowerCase() === 'done';
       this.tasks.splice(index, 1, {
         ...previousTask,
@@ -263,7 +246,6 @@ export const useTasksStore = defineStore('tasks', {
         this.hasLoadedOnce = true;
         return updated;
       } catch (error) {
-        // Revert on failure
         this.tasks.splice(index, 1, {
           ...previousTask,
           status: previousStatus,
@@ -272,7 +254,6 @@ export const useTasksStore = defineStore('tasks', {
         this.errorMessage = error?.message ?? 'Failed to update status.';
         try { this.errorCorrelationId = api.correlationId || ''; } catch {}
 
-        // If concurrency error, try to refresh the current page to show latest data
         if (error?.status === 412) {
           try {
             const params = this.lastRequestParams || {

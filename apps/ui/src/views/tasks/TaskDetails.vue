@@ -20,38 +20,29 @@ const tasksStore = useTasksStore();
 
 const taskId = String(route.params.id || '').trim();
 
-/** ---------- Page state ---------- */
 const isLoading = ref(false);
 const isSaving = ref(false);
 const isDeleting = ref(false);
 const loadErrorMessage = ref('');
 
-/** ---------- Form state ---------- */
 const titleInput = ref('');
 const descriptionInput = ref('');
 const priorityInput = ref(TASK_PRIORITIES.includes('Medium') ? 'Medium' : TASK_PRIORITIES[0]);
 const dueDateInput = ref(''); // yyyy-MM-dd
 const selectedTags = ref([]); // string[]
 
-/**
- * We keep two separate status refs to avoid confusing the user:
- * - savedStatus   → reflects the last persisted value (what header displays)
- * - draftStatus   → what the user is currently selecting (only saved on submit)
- */
 const savedStatus = ref('Todo');
 const draftStatus = ref('Todo');
 
-/** Snapshot to compute dirtiness and to support Reset */
 let snapshot = {
   title: '',
   description: '',
   priority: priorityInput.value,
   dueDate: '',
   tags: [],
-  status: 'Todo', // snapshot of the last persisted status
+  status: 'Todo', 
 };
 
-/** ---------- Toasts ---------- */
 const successToast = ref({ show: false, message: '' });
 const errorToast = ref({ show: false, message: '', correlationId: '' });
 
@@ -63,7 +54,6 @@ function showError(message) {
   errorToast.value = { show: true, message, correlationId };
 }
 
-/** ---------- Helpers ---------- */
 function takeSnapshot() {
   snapshot = {
     title: titleInput.value,
@@ -71,7 +61,7 @@ function takeSnapshot() {
     priority: priorityInput.value,
     dueDate: dueDateInput.value || '',
     tags: [...selectedTags.value],
-    status: savedStatus.value, // snapshot tracks the last persisted status
+    status: savedStatus.value,
   };
 }
 
@@ -93,7 +83,7 @@ const isDirty = computed(() => {
     priority: priorityInput.value,
     dueDate: dueDateInput.value || '',
     tags: [...selectedTags.value],
-    status: draftStatus.value, // compare the *draft* against the persisted snapshot
+    status: draftStatus.value, 
   };
   return JSON.stringify(now) !== JSON.stringify(snapshot);
 });
@@ -112,7 +102,6 @@ async function handleConcurrencyAndReload(contextMessage) {
   }
 }
 
-/** ---------- Load ---------- */
 async function loadTask() {
   if (!taskId) {
     loadErrorMessage.value = 'Invalid task id.';
@@ -133,7 +122,6 @@ async function loadTask() {
   }
 }
 
-/** ---------- Save (PUT) ---------- */
 const MAX_TITLE = 120;
 const MAX_DESCRIPTION = 2000;
 
@@ -178,7 +166,7 @@ async function handleSave() {
     title: titleInput.value,
     description: descriptionInput.value || undefined,
     priority: priorityInput.value,
-    status: draftStatus.value, // save the draft
+    status: draftStatus.value, 
     dueDate: dueDateInput.value || null,
     tags: selectedTags.value,
   };
@@ -187,11 +175,10 @@ async function handleSave() {
     const headers = currentIfMatchHeaders();
     const { data, response } = await api.put(`/api/v1/tasks/${encodeURIComponent(taskId)}`, payload, { headers });
 
-    applyDtoToForm(data); // updates savedStatus + draftStatus and snapshot
+    applyDtoToForm(data); 
     const nextEtag = data?.eTag || api.readETag(response);
     if (nextEtag) cache.setETag(taskId, nextEtag);
 
-    // Soft-update list item if present
     try {
       const index = tasksStore.tasks.findIndex(t => String(t.id) === taskId);
       if (index >= 0) {
@@ -218,13 +205,11 @@ async function handleSave() {
   }
 }
 
-/** ---------- Status selection (local only; save to persist) ---------- */
 function selectStatus(nextStatus) {
   if (!nextStatus || isSaving.value || isDeleting.value) return;
   draftStatus.value = nextStatus;
 }
 
-/** ---------- Delete with If-Match ---------- */
 async function handleDelete() {
   const confirmed = window.confirm('Delete this task? This cannot be undone.');
   if (!confirmed) return;
@@ -252,22 +237,19 @@ async function handleDelete() {
   }
 }
 
-/** ---------- Reset ---------- */
 function handleReset() {
   titleInput.value = snapshot.title;
   descriptionInput.value = snapshot.description;
   priorityInput.value = snapshot.priority;
   dueDateInput.value = snapshot.dueDate;
   selectedTags.value = [...snapshot.tags];
-  draftStatus.value = snapshot.status; // revert draft to the last persisted status
+  draftStatus.value = snapshot.status;
 }
 
-/** ---------- Status UI helpers ---------- */
 function statusLabel(status) {
   return String(status);
 }
 
-/** ---------- Init ---------- */
 onMounted(() => {
   loadTask();
 });

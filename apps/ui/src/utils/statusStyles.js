@@ -1,9 +1,3 @@
-/**
- * Centralized styles for task statuses.
- * Keep this tiny and dumb: return Tailwind utility strings for reuse.
- * This file is the single source of truth for status colors across the app.
- */
-
 export const STATUS_STYLE_CONFIG = Object.freeze({
   Todo: {
     badge: 'bg-gray-100 text-gray-700',
@@ -40,23 +34,11 @@ const BUTTON_BASE = 'px-3 py-1.5 rounded-md text-sm';
 const BUTTON_UNSELECTED =
   'px-3 py-1.5 rounded-md text-sm border border-gray-300 text-gray-800 hover:bg-gray-50';
 
-/**
- * Returns Tailwind classes for a small pill/badge representing the status.
- * @param {string} status
- * @returns {string}
- */
 export function getStatusBadgeClasses(status) {
   const style = STATUS_STYLE_CONFIG[status];
   return style ? style.badge : DEFAULT_BADGE;
 }
 
-/**
- * Returns Tailwind classes for a status button in the details page.
- * Unselected buttons use a neutral outline; selected uses the status color.
- * @param {string} status
- * @param {boolean} isSelected
- * @returns {string}
- */
 export function getStatusButtonClasses(status, isSelected) {
   if (isSelected) {
     const style = STATUS_STYLE_CONFIG[status];
@@ -66,22 +48,12 @@ export function getStatusButtonClasses(status, isSelected) {
   return BUTTON_UNSELECTED;
 }
 
-/**
- * Returns Tailwind classes for a small circular dot representing the status.
- * @param {string} status
- * @returns {string}
- */
+
 export function getStatusDotClasses(status) {
   const style = STATUS_STYLE_CONFIG[status];
   return style ? style.dot : DEFAULT_DOT;
 }
 
-/**
- * Returns only the accent classes for a <select> showing the status.
- * Keep the base sizing/shape in the component; this function supplies color + focus styles.
- * @param {string} status
- * @returns {string}
- */
 export function getStatusSelectAccentClasses(status) {
   const style = STATUS_STYLE_CONFIG[status];
   return style ? style.selectAccent : DEFAULT_SELECT_ACCENT;

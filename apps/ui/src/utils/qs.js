@@ -1,9 +1,3 @@
-/**
- * Build a query string with repeated keys for arrays.
- * - Skips null/undefined
- * - Dates use toISOString()
- * - Adds leading '?' by default
- */
 export function buildQueryString(params, { addPrefix = true } = {}) {
   if (!params || typeof params !== 'object') return addPrefix ? '' : '';
 

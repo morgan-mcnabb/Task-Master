@@ -11,14 +11,12 @@ import { ROUTE_NAMES } from '@/constants/routeNames';
 const router = useRouter();
 const tasksStore = useTasksStore();
 
-/** ---------- Form state ---------- */
 const titleInput = ref('');
 const descriptionInput = ref('');
 const priorityInput = ref(TASK_PRIORITIES.includes('Medium') ? 'Medium' : TASK_PRIORITIES[0]);
-const dueDateInput = ref(''); // yyyy-MM-dd from <input type="date">
-const selectedTags = ref([]); // array<string>
+const dueDateInput = ref(''); 
+const selectedTags = ref([]); 
 
-/** ---------- Validation ---------- */
 const MAX_TITLE = 120;
 const MAX_DESCRIPTION = 2000;
 
@@ -56,7 +54,6 @@ function runValidation() {
   return Object.values(fieldErrors.value).every(message => !message);
 }
 
-/** ---------- Submit ---------- */
 const isSubmitting = ref(false);
 const errorToast = ref({ show: false, message: '', correlationId: '' });
 
@@ -64,7 +61,6 @@ async function handleSubmit() {
   titleInput.value = titleInput.value.trim();
   descriptionInput.value = descriptionInput.value.trim();
 
-  // Defensive dedupe (TagPicker already prevents duplicates)
   const seen = new Set();
   const uniqueTags = [];
   for (const tag of selectedTags.value) {
@@ -86,7 +82,6 @@ async function handleSubmit() {
     description: descriptionInput.value || undefined,
     priority: priorityInput.value,
     dueDate: dueDateInput.value || null,
-    // Free-text tags are allowed; server will ensure/create them.
     tags: selectedTags.value,
   };
 

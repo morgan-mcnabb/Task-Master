@@ -25,21 +25,11 @@ import {
 } from '@/utils/taskQuery';
 import { ROUTE_NAMES } from '@/constants/routeNames';
 
-// Store
 const tasksStore = useTasksStore();
 
-// Router state <-> filters sync
 const route = useRoute();
 const router = useRouter();
 const filters = ref(parseRouteQueryToFilters(route.query));
-
-/**
- * ---------- Single source of truth strategy ----------
- * - Controls only update the URL (router replace/push), never fetch directly.
- * - A single route watcher (immediate) performs the fetch.
- * - We guard against no-op navigations (same query) to avoid useless updates.
- * - Search uses a debounced *router update* (not a debounced fetch).
- */
 
 function normalizeQueryObject(obj) {
   const clone = JSON.parse(JSON.stringify(obj ?? {}));
@@ -48,13 +38,8 @@ function normalizeQueryObject(obj) {
   if (Array.isArray(clone.tags)) clone.tags = [...clone.tags].sort();
   return clone;
 }
-
 function areQueriesEqual(a, b) {
-  const normalizedA = normalizeQueryObject(a);
-  const normalizedB = normalizeQueryObject(b);
-  const serializedA = JSON.stringify(normalizedA);
-  const serializedB = JSON.stringify(normalizedB);
-  return serializedA === serializedB;
+  return JSON.stringify(normalizeQueryObject(a)) === JSON.stringify(normalizeQueryObject(b));
 }
 
 async function navigateWithFilters({ usePush = false } = {}) {
@@ -66,21 +51,25 @@ async function navigateWithFilters({ usePush = false } = {}) {
   if (areQueriesEqual(nextQuery, currentQuery)) {
     return;
   }
-
-  if (usePush) {
-    await router.push({ query: nextQuery });
-  } else {
-    await router.replace({ query: nextQuery });
-  }
+  return usePush ? router.push({ query: nextQuery }) : router.replace({ query: nextQuery });
 }
 
-// Abortable fetch runner, used only by the route watcher.
+function resetPageAndNavigate(options = { usePush: false }) {
+  filters.value.pageNumber = DEFAULT_PAGINATION.pageNumber;
+  return navigateWithFilters(options);
+}
+
+function clearFilterArray(key) {
+  if (!filters.value[key]) return;
+  filters.value[key] = [];
+  return resetPageAndNavigate();
+}
+
 const fetchRunner = makeAbortable(async ({ signal }, currentFilters) => {
   const params = buildFetchParamsFromFilters(currentFilters);
   await tasksStore.fetchTasks(params, { signal });
 });
 
-// Route watcher does the fetching (single place).
 watch(
   () => route.query,
   (query) => {
@@ -90,83 +79,39 @@ watch(
   { immediate: true }
 );
 
-// ------- Controls logic (only update URL; fetching is watcher-driven) -------
-
 const sortFieldOptions = TASK_SORT_OPTIONS;
 const sortDirections = SORT_DIRECTIONS;
 const pageSizeOptions = PAGE_SIZE_OPTIONS;
 
-// When tags change (via TagPicker), reset page and push new query.
+function onStatusesChange() { return resetPageAndNavigate(); }
+function onPrioritiesChange() { return resetPageAndNavigate(); }
+function onDateRangeChange() { return resetPageAndNavigate(); }
+function onSortChange() { return resetPageAndNavigate(); }
+function onPageSizeChange() { return resetPageAndNavigate(); }
+
+function clearStatuses() { return clearFilterArray('statuses'); }
+function clearPriorities() { return clearFilterArray('priorities'); }
+
 watch(
   () => filters.value.tags,
-  () => {
-    filters.value.pageNumber = DEFAULT_PAGINATION.pageNumber;
-    navigateWithFilters({ usePush: false });
-  },
+  () => resetPageAndNavigate(),
   { deep: true }
 );
 
-// Statuses and priorities: checkbox groups
-function onStatusesChange() {
-  filters.value.pageNumber = DEFAULT_PAGINATION.pageNumber;
-  navigateWithFilters({ usePush: false });
-}
-function onPrioritiesChange() {
-  filters.value.pageNumber = DEFAULT_PAGINATION.pageNumber;
-  navigateWithFilters({ usePush: false });
-}
-function clearStatuses() {
-  filters.value.statuses = [];
-  onStatusesChange();
-}
-function clearPriorities() {
-  filters.value.priorities = [];
-  onPrioritiesChange();
-}
-
-// Date pickers
-function onDateRangeChange() {
-  filters.value.pageNumber = DEFAULT_PAGINATION.pageNumber;
-  navigateWithFilters({ usePush: false });
-}
-
-// Sort & direction
-function onSortChange() {
-  filters.value.pageNumber = DEFAULT_PAGINATION.pageNumber;
-  navigateWithFilters({ usePush: false });
-}
-
-// Page size
-function onPageSizeChange() {
-  filters.value.pageNumber = DEFAULT_PAGINATION.pageNumber;
-  navigateWithFilters({ usePush: false });
-}
-
-// Search: debounce the *router update* so we do not spam requests.
-const debouncedSearchRouteUpdate = debounce(() => {
-  filters.value.pageNumber = DEFAULT_PAGINATION.pageNumber;
-  navigateWithFilters({ usePush: false });
-}, 350);
+const debouncedSearchRouteUpdate = debounce(() => resetPageAndNavigate(), 350);
 function onSearchInput(event) {
   filters.value.search = event.target.value;
   debouncedSearchRouteUpdate();
 }
 
-// Pagination: push so Back works between pages (no replace).
-function goPrevPage() {
-  if (tasksStore.pageNumber > 1) {
-    filters.value.pageNumber = tasksStore.pageNumber - 1;
-    navigateWithFilters({ usePush: true });
-  }
+function goToPage(targetPage) {
+  if (targetPage < 1 || targetPage > tasksStore.totalPages) return;
+  filters.value.pageNumber = targetPage;
+  return navigateWithFilters({ usePush: true });
 }
-function goNextPage() {
-  if (tasksStore.pageNumber < tasksStore.totalPages) {
-    filters.value.pageNumber = tasksStore.pageNumber + 1;
-    navigateWithFilters({ usePush: true });
-  }
-}
+function goPrevPage() { return goToPage(tasksStore.pageNumber - 1); }
+function goNextPage() { return goToPage(tasksStore.pageNumber + 1); }
 
-// Loading UX states
 const isInitialLoading = computed(() => tasksStore.isLoading && !tasksStore.hasLoadedOnce);
 const isRefreshing = computed(() => tasksStore.isLoading && tasksStore.hasLoadedOnce);
 </script>
@@ -186,9 +131,7 @@ const isRefreshing = computed(() => tasksStore.isLoading && tasksStore.hasLoaded
       </router-link>
     </header>
 
-    <!-- Controls -->
     <div class="grid gap-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm md:grid-cols-3 lg:grid-cols-4">
-      <!-- Search -->
       <div class="md:col-span-1 lg:col-span-2">
         <label class="block text-sm font-medium text-gray-700">Search</label>
         <input
@@ -200,7 +143,6 @@ const isRefreshing = computed(() => tasksStore.isLoading && tasksStore.hasLoaded
         />
       </div>
 
-      <!-- Statuses (checkbox group) -->
       <div class="md:col-span-1">
         <div class="flex items-center justify-between">
           <label class="block text-sm font-medium text-gray-700">Statuses</label>
@@ -233,7 +175,6 @@ const isRefreshing = computed(() => tasksStore.isLoading && tasksStore.hasLoaded
         <div class="mt-1 text-xs text-gray-500">Choose any; empty means all.</div>
       </div>
 
-      <!-- Priorities (checkbox group) -->
       <div class="md:col-span-1">
         <div class="flex items-center justify-between">
           <label class="block text-sm font-medium text-gray-700">Priorities</label>
@@ -266,7 +207,6 @@ const isRefreshing = computed(() => tasksStore.isLoading && tasksStore.hasLoaded
         <div class="mt-1 text-xs text-gray-500">Choose any; empty means all.</div>
       </div>
 
-      <!-- Due date range -->
       <div class="md:col-span-1">
         <label class="block text-sm font-medium text-gray-700">Due on or after</label>
         <input
@@ -286,7 +226,6 @@ const isRefreshing = computed(() => tasksStore.isLoading && tasksStore.hasLoaded
         />
       </div>
 
-      <!-- Tags -->
       <div class="md:col-span-3 lg:col-span-4">
         <label class="block text-sm font-medium text-gray-700">Tags</label>
         <div class="mt-1">
@@ -294,7 +233,6 @@ const isRefreshing = computed(() => tasksStore.isLoading && tasksStore.hasLoaded
         </div>
       </div>
 
-      <!-- Sorting + page size -->
       <div class="md:col-span-1">
         <label class="block text-sm font-medium text-gray-700">Sort by</label>
         <select
@@ -333,7 +271,6 @@ const isRefreshing = computed(() => tasksStore.isLoading && tasksStore.hasLoaded
       </div>
     </div>
 
-    <!-- Errors -->
     <Toast
       :show="Boolean(tasksStore.errorMessage)"
       title="Could not load tasks"
@@ -343,7 +280,6 @@ const isRefreshing = computed(() => tasksStore.isLoading && tasksStore.hasLoaded
       @close="tasksStore.errorMessage = ''"
     />
 
-    <!-- Initial loading skeleton only -->
     <div v-if="isInitialLoading" class="space-y-3 rounded-lg border border-gray-200 bg-white p-4">
       <div class="h-4 w-1/3 animate-pulse rounded bg-gray-200"></div>
       <div class="space-y-2">
@@ -351,7 +287,6 @@ const isRefreshing = computed(() => tasksStore.isLoading && tasksStore.hasLoaded
       </div>
     </div>
 
-    <!-- Results / Empty (kept visible during refresh) -->
     <template v-else>
       <div v-if="isRefreshing" class="h-1 w-full animate-pulse rounded bg-indigo-200"></div>
 
@@ -434,7 +369,6 @@ const isRefreshing = computed(() => tasksStore.isLoading && tasksStore.hasLoaded
         </ul>
       </div>
 
-      <!-- Inline pagination -->
       <div class="mt-4 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div class="text-sm text-gray-600">
           <span class="font-medium">{{ tasksStore.totalCount }}</span> results
@@ -449,7 +383,7 @@ const isRefreshing = computed(() => tasksStore.isLoading && tasksStore.hasLoaded
             Prev
           </button>
 
-        <span class="px-2 text-sm text-gray-700">
+          <span class="px-2 text-sm text-gray-700">
             Page <strong>{{ tasksStore.pageNumber }}</strong> of <strong>{{ tasksStore.totalPages }}</strong>
           </span>
 

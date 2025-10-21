@@ -1,19 +1,3 @@
-/**
- * API Client (fetch-based, navigation-agnostic)
- * - Base URL from VITE_API_BASE_URL ('' => same-origin)
- * - credentials: 'include'
- * - X-Correlation-Id (uuid v4) persisted per tab in sessionStorage
- * - JSON helpers: get/post/put/patch/delete (Content-Type only when sending a body)
- * - ProblemDetails handler: surfaces { title, errors, status } cleanly
- * - Status handling (non-navigational):
- *    423 → lockout notifier (supports Retry-After header)
- *    429 → toast “Too many requests; try again shortly”
- * - ETag helpers: readETag(response) and withIfMatch(headers, etag)
- *
- * IMPORTANT: This client does NOT perform router navigation on 401/403.
- *            Route guards are responsible for redirecting to /login, etc.
- */
-
 const CORRELATION_ID_STORAGE_KEY = 'tm.correlationId';
 
 function getOrCreateCorrelationId() {
@@ -34,7 +18,6 @@ function getOrCreateCorrelationId() {
 }
 
 function generateUuidV4Fallback() {
-  // RFC4122-ish fallback
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
     const r = (Math.random() * 16) | 0;
     const v = c === 'x' ? r : (r & 0x3) | 0x8;
@@ -57,7 +40,6 @@ function joinUrl(baseUrl, path) {
   return `${normalizedBase}${normalizedPath}`;
 }
 
-/** RFC7807 helper */
 function parseProblemDetails(maybeJson, status) {
   const title = maybeJson?.title || 'Request failed';
   const errors = maybeJson?.errors || null;
@@ -76,16 +58,15 @@ export class ApiError extends Error {
   }
 }
 
-/** ETag helpers */
 export function readETag(response) {
   return response.headers.get('ETag') || response.headers.get('etag') || null;
 }
+
 export function withIfMatch(headers = {}, etag) {
   if (!etag) return headers;
   return { ...headers, 'If-Match': etag };
 }
 
-/** Notifier (DI-friendly) */
 function createDefaultNotifier() {
   return {
     toast(message) { try { console.warn('[toast]', message); } catch {} },
@@ -97,15 +78,20 @@ function createDefaultNotifier() {
 
 function parseRetryAfter(headerValue) {
   if (!headerValue) return null;
+  
   const asInt = Number.parseInt(headerValue, 10);
   if (!Number.isNaN(asInt)) return Math.max(0, asInt);
+  
   const retryDate = new Date(headerValue);
   if (Number.isNaN(retryDate.getTime())) return null;
+
   const diffMs = retryDate.getTime() - Date.now();
   return Math.max(0, Math.ceil(diffMs / 1000));
 }
+
 function startCountdown(seconds, notifier) {
   if (!(seconds > 0)) return () => {};
+
   let remaining = seconds;
   notifier.lockoutStart(remaining);
   const id = setInterval(() => {
@@ -113,10 +99,10 @@ function startCountdown(seconds, notifier) {
     if (remaining > 0) notifier.lockoutTick(remaining);
     else { clearInterval(id); notifier.lockoutEnd(); }
   }, 1000);
+  
   return () => clearInterval(id);
 }
 
-/** Non-2xx side effects (no navigation) */
 function handleResponseSideEffects(response, notifier) {
   const status = response.status;
   if (status === 423) {
@@ -131,7 +117,6 @@ function handleResponseSideEffects(response, notifier) {
   }
 }
 
-/** Factory */
 export function createApiClient({
   baseUrl = resolveApiBaseUrl(),
   fetchImpl = fetch,
@@ -197,7 +182,7 @@ export function createApiClient({
   }
 
   return {
-    correlationId, // ← expose for error toasts
+    correlationId, 
 
     request: requestJson,
     get: (path, options = {}) => requestJson(path, { ...options, method: 'GET' }),

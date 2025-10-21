@@ -1,11 +1,3 @@
-/**
- * Create an abortable task wrapper.
- *
- * Usage:
- *   const fetchTask = makeAbortable(({ signal }, id) => api.get(`/api/x/${id}`, { signal }));
- *   const { promise } = fetchTask.run(123);
- *   // fetchTask.abort(); // if needed
- */
 export function makeAbortable(taskFactory) {
   let controller = null;
 

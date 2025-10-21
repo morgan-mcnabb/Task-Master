@@ -1,5 +1,5 @@
 {
   "name": "task-master",
   "private": true,
-  "workspaces": ["apps/*"]
+  "workspaces": ["apps/ui"]
 }

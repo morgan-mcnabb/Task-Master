@@ -37,7 +37,6 @@ async function handleLogin() {
   }
 }
 
-// If already authenticated (or becomes so), leave this page immediately.
 onMounted(() => {
   if (authStore.isAuthenticated) {
     router.replace(computeRedirectTarget());

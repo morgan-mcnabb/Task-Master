@@ -13,7 +13,6 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
-      // Proxy API to backend in dev so cookies are first-party
       '/auth':  { target: 'http://localhost:5055', changeOrigin: true },
       '/api':   { target: 'http://localhost:5055', changeOrigin: true },
       '/health':{ target: 'http://localhost:5055', changeOrigin: true },
