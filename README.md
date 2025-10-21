@@ -79,6 +79,7 @@ This isn't the exact order I'd make these changes, just what the order that I th
 - **CDN**: Since the UI is being served up via static assets, we could serve them up via a CDN to really speed up the delivery of the assets. If using AWS, we could use Cloudfront + S3.
 - **Bulk operations**: Right now, the UI is limited to single entity changes. Being able to select multiple tasks to delete/update would massively improve user experience.
 - **Move deployment**: The application is has a docker image hosted in Fly.io which is great for small applications and demos, like this one is right now. As it scales, I'd like to have more control over it and also take advantage of other services that AWS offers so I would deploy application to ECS Fargate behind an ALB (or not, if I don't have the money!).
+- **UI Design**: I never claimed to be a great UI designer but I would spend a lot more time on figuring out the UI design of this. As it is right now, it's functional but I'm not totally happy with the layout or the colors.
 ---
 ## Architectural Designs
 ### Projects
